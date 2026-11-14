@@ -40,7 +40,15 @@ jobs:
           python3 scripts/validate.py --base-registry "$RUNNER_TEMP/base-registry.json"
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # A push that changes neither the list nor what checks it (docs, tests, other workflows)
+      # can't change the answer: it's the weekly run and a manual start that catch a plugin's
+      # new release breaking its entry.
       - if: github.event_name != 'pull_request'
-        run: python3 scripts/validate.py
+        run: |
+          if [ "${{ github.event_name }}" = push ] && ! git diff --name-only HEAD^1 HEAD | grep -qE '^(registry/apps\.json|README\.md|scripts/|\.github/workflows/ci\.yml)'; then
+            echo "Nothing the entries are checked with changed; skipping the check against GitHub."
+            exit 0
+          fi
+          python3 scripts/validate.py
         env:
           GITHUB_TOKEN: ${{ github.token }}
