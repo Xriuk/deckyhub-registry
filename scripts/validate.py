@@ -19,6 +19,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -504,11 +505,16 @@ def main() -> int:
                 previous = {app["id"]: app for app in json.load(base)["apps"]}
             live_apps = [app for app in apps if previous.get(app["id"]) != app]
         github = fetch_github(list({app["repo"].casefold(): app["repo"] for app in live_apps}.values())) if live_apps else {}
-        for app in live_apps:
+        def check(app):
             try:
-                app_errors, app_warnings = github_problems(app, github.get(app["repo"].casefold(), {}))
+                return github_problems(app, github.get(app["repo"].casefold(), {}))
             except Exception as error:  # one unreachable repo shouldn't hide the rest
-                app_errors, app_warnings = [f"{app['id']}: {type(error).__name__}: {error}"], []
+                return [f"{app['id']}: {type(error).__name__}: {error}"], []
+
+        # Each entry reads its ZIPs' indexes over the network, so they run side by side; map keeps the order.
+        with ThreadPoolExecutor(8) as pool:
+            checked = list(pool.map(check, live_apps))
+        for app, (app_errors, app_warnings) in zip(live_apps, checked):
             errors += app_errors
             warnings += app_warnings
             print(f"{'FAIL' if app_errors else 'ok  '} {app['id']}", flush=True)
