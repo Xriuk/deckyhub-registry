@@ -24,6 +24,11 @@ It also writes stats.json for the catalog page, per plugin:
 - store: {downloads} when the Decky store (plugins.deckbrew.xyz and its testing store) lists a plugin
   of that name (detect names, then display name; the store names no repository). Those are Decky's
   installs, a different count from GitHub's downloads. Missing when it isn't listed or the store can't be read.
+- rating: {rated, average, works, broken} from DeckyHub users' ratings (the Worker in
+  deckyhub-plugin's ratings/, RATINGS_URL): how many gave stars and their average (1 to 5, one
+  decimal), and how many said the plugin works or doesn't work on their device. Each part is
+  missing when nobody gave it; the field is missing when nobody rated. Opinions, not a security
+  check. When the ratings can't be read, they're copied from OLD_STATS_JSON.
 - warnings / prereleaseWarnings: what Decky Extended Plugins' audit found in that release
   (and in a newer pre-release, if any) that's worth warning about (see WARNINGS). Matched
   by the ZIP's sha256, else by tag. Missing when there's nothing to warn about.
@@ -44,6 +49,7 @@ Releases and stars come from GitHub's GraphQL API (fetch_github in validate.py).
 """
 import functools
 import json
+import os
 import re
 import sys
 import time
@@ -53,6 +59,8 @@ from pathlib import Path
 from validate import load_registry_apps, REGISTRY, channel_releases, fetch, fetch_github, inherited_ai, installable_releases, matching_assets, plugin_version, zip_plugin_files
 
 AUDIT_URL = "https://decky-extended-plugins.beallio.com/audit.json"
+# DeckyHub's ratings Worker (deckyhub-plugin/ratings). Set RATINGS_URL to another address, or to nothing to skip it.
+RATINGS_URL = os.environ.get("RATINGS_URL", "https://api.deckyhub.com/v1/aggregate")
 # The audit's rule ID prefixes worth a warning on a card, like Runs as root. Routine ones
 # (sudo, mount, systemctl, subprocess) aren't: many useful plugins need them on SteamOS,
 # and Runs as root already says the plugin has the system.
@@ -99,6 +107,31 @@ def store_downloads(lists: list[list[dict]]) -> dict[str, int]:
                 downloads = plugin.get("downloads")
                 found[plugin["name"].casefold()] = max(found.get(plugin["name"].casefold(), 0), downloads if isinstance(downloads, int) else 0)
     return found
+
+
+def rating_entry(found: dict, repo: str) -> dict | None:
+    """What users' ratings say about a repository: {rated, average, works, broken}, each only when it is a
+    sane number. Anything else the Worker says is dropped, and None when nothing is left."""
+    record = found.get(repo.casefold())
+    if not isinstance(record, dict):
+        return None
+    rating = {}
+    for key in ("rated", "works", "broken"):
+        if isinstance(record.get(key), int) and not isinstance(record[key], bool) and record[key] > 0:
+            rating[key] = record[key]
+    average = record.get("average")
+    if "rated" in rating and isinstance(average, (int, float)) and not isinstance(average, bool) and 1 <= average <= 5:
+        rating["average"] = round(float(average), 1)
+    return rating if rating.get("rated") or rating.get("works") or rating.get("broken") else None
+
+
+def keep_old_ratings(stats: dict, old: dict) -> None:
+    """For a run that couldn't read the ratings: each plugin keeps the rating the last published
+    stats.json had, rather than looking unrated until the Worker is back."""
+    for repo, stat in stats.items():
+        previous = old.get(repo)
+        if isinstance(previous, dict) and isinstance(previous.get("rating"), dict):
+            stat["rating"] = previous["rating"]
 
 
 def store_entry(entry: dict, found: dict[str, int]) -> dict | None:
@@ -182,7 +215,7 @@ def warnings_of(entry: dict, release: dict | None, audits: dict) -> list[str]:
     return audits.get((entry["repo"].casefold(), release.get("tag_name"))) or []
 
 
-def plugin_stats(entry: dict, releases: list[dict], stars, manifest=lambda asset: zip_plugin_files(asset)[0], audits: dict | None = None, fork: str | None = None, ai: list[str] | None = None, store: dict | None = None) -> dict:
+def plugin_stats(entry: dict, releases: list[dict], stars, manifest=lambda asset: zip_plugin_files(asset)[0], audits: dict | None = None, fork: str | None = None, ai: list[str] | None = None, store: dict | None = None, rating: dict | None = None) -> dict:
     channels = channel_releases(entry, releases)
     shown = channels["stable"] or channels["prerelease"]
     assets = matching_assets(entry, shown) if shown else []
@@ -197,6 +230,8 @@ def plugin_stats(entry: dict, releases: list[dict], stars, manifest=lambda asset
         stats["fork"] = fork
     if store:
         stats["store"] = store
+    if rating:
+        stats["rating"] = rating
     if evidence := merge_ai_evidence(entry["repo"], ai):
         stats["ai"] = evidence
     if audits:
@@ -280,15 +315,21 @@ def main() -> int:
     audits = best_effort(lambda url: audit_index(json.loads(fetch(url, auth=False))), AUDIT_URL) or None
     # The Decky store is someone else's site: without it the plugins just show no store badge.
     in_store = best_effort(lambda: store_downloads([json.loads(fetch(url, auth=False)) for url in STORE_URLS])) or {}
+    # DeckyHub's own ratings Worker: without it the plugins keep the ratings they had (keep_old_ratings below).
+    ratings = best_effort(lambda url: json.loads(fetch(url, auth=False)).get("plugins") or {}, RATINGS_URL) if RATINGS_URL else {}
     # One read per ZIP: the shown release's feeds both root (stats) and pluginVersion.
     files = functools.lru_cache(maxsize=None)(lambda url, size: zip_plugin_files({"browser_download_url": url, "size": size}))
     read = lambda asset: files(asset["browser_download_url"], asset["size"])  # noqa: E731
-    index = build(entries, lambda repo: github[repo.casefold()]["releases"], lambda entry, releases: plugin_stats(entry, releases, lambda repo: github[repo.casefold()]["stars"], manifest=lambda asset: read(asset)[0], audits=audits, fork=entry.get("upstream") or fork_of(github[entry["repo"].casefold()]), ai=ai_evidence(entry, github[entry["repo"].casefold()], known_ai), store=store_entry(entry, in_store)), version=lambda asset: plugin_version(*read(asset)))
-    if audits is None and len(sys.argv) > 2:
+    index = build(entries, lambda repo: github[repo.casefold()]["releases"], lambda entry, releases: plugin_stats(entry, releases, lambda repo: github[repo.casefold()]["stars"], manifest=lambda asset: read(asset)[0], audits=audits, fork=entry.get("upstream") or fork_of(github[entry["repo"].casefold()]), ai=ai_evidence(entry, github[entry["repo"].casefold()], known_ai), store=store_entry(entry, in_store), rating=rating_entry(ratings or {}, entry["repo"])), version=lambda asset: plugin_version(*read(asset)))
+    if (audits is None or (ratings is None and RATINGS_URL)) and len(sys.argv) > 2:
         try:
-            keep_old_warnings(index["stats"], json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")).get("plugins") or {})
+            old = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")).get("plugins") or {}
+            if audits is None:
+                keep_old_warnings(index["stats"], old)
+            if ratings is None and RATINGS_URL:
+                keep_old_ratings(index["stats"], old)
         except (OSError, ValueError, AttributeError) as error:
-            print(f"warning: no earlier stats to keep warnings from: {error}", file=sys.stderr)
+            print(f"warning: no earlier stats to keep warnings or ratings from: {error}", file=sys.stderr)
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
     # DeckyHub reads releases; the catalog page reads the much smaller stats file.
