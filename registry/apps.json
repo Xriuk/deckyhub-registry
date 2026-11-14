@@ -709,7 +709,7 @@
       "repo": "maroun2/deck-progress-tracker",
       "category": "Game Libraries",
       "detect": { "type": "decky-plugin", "names": ["Deck Progress Tracker"] },
-      "asset": { "include": [".zip"], "exclude": ["source"] }
+      "asset": { "include": [".zip"], "exclude": ["source", "tracker.zip"] }
     },
     {
       "id": "decky-game-settings",
@@ -1477,7 +1477,7 @@
       "description": "Browses and manages your files with a controller in Gaming Mode.",
       "repo": "Ciphay/Decky-File-Manager",
       "category": "Utilities",
-      "detect": { "type": "decky-plugin", "names": ["Decky Manager"] },
+      "detect": { "type": "decky-plugin", "names": ["Decky Manager", "Decky File Manager"] },
       "asset": { "include": [".zip"], "exclude": ["source"] }
     },
     {
@@ -3143,7 +3143,7 @@
       "repo": "LoZazaMastro/TrailerHero",
       "category": "Game Libraries",
       "detect": { "type": "decky-plugin", "names": ["TrailerHero"] },
-      "asset": { "include": [".zip"], "exclude": ["source"] }
+      "asset": { "include": ["installer"], "exclude": ["source"] }
     },
     {
       "id": "helixsr-decky-plugin-muse",
@@ -5234,7 +5234,7 @@
       "repo": "LoZazaMastro/Playhub-Metadata",
       "category": "Game Libraries",
       "detect": { "type": "decky-plugin", "names": ["Playhub Metadata"] },
-      "asset": { "include": [".zip"], "exclude": ["source"] }
+      "asset": { "include": ["installer"], "exclude": ["source"] }
     },
     {
       "id": "decky-wine-cellar",
