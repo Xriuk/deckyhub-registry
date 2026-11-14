@@ -62,3 +62,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           VALIDATE_CACHE: ${{ github.event_name != 'schedule' && format('{0}/zip-reads.json', runner.temp) || '' }}
+      # Entries that look unfinished (scripts/quality.py), in the run's summary: a list to judge, never a failure.
+      - if: github.event_name == 'schedule'
+        run: |
+          { echo "### Entries that look unfinished"; echo; echo '```'; python3 scripts/quality.py || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
