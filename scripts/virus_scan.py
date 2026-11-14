@@ -277,6 +277,13 @@ def plan(wanted: dict[str, dict], old: dict[str, dict], today: datetime) -> tupl
             new.append(url)
             continue
         kept[url] = report
+        # ClamAV giving up on a ZIP's size, file count or scan time (MaxScanTime alone costs 10 minutes of
+        # every run) gives up again: it's tried once a day, not on every run.
+        limits = report.get("result") == "incomplete" and report.get("found") and all(str(name).startswith(LIMITS) for name in report["found"])
+        if limits and (report.get("yara") or {}).get("result") not in (None, "error") and (report.get("audit") or {}).get("result") not in (None, "error") and (report.get("audit") or {}).get("version") == 2:
+            if (report.get("scannedAt") or "") <= (today - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ"):
+                stale.append(url)
+            continue
         if report.get("result") == "incomplete" or (report.get("yara") or {}).get("result") in (None, "error") or (report.get("audit") or {}).get("result") in (None, "error") or (report.get("audit") or {}).get("version") != 2:
             new.append(url)
             continue

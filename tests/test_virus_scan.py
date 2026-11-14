@@ -84,7 +84,19 @@ class PlanTests(unittest.TestCase):
         old = {url: {**report, "yara": YARA_OK, "audit": {"result": "complete", "version": 2}} for url, report in old.items()}
         kept, todo = plan(wanted, old, TODAY)
         self.assertEqual(set(kept), {"same", "partial", "old", "older", "nodigest"})
-        self.assertEqual(todo, ["new", "changed", "failed", "partial", "older", "old"])
+        self.assertEqual(todo, ["new", "changed", "failed", "older", "old", "partial"])
+
+    def test_a_zip_clamav_gives_up_on_for_its_limits_is_tried_once_a_day_not_every_run(self):
+        wanted = {url: {"sha256": "aa", "size": 1} for url in ("today", "yesterday", "other", "new")}
+        base = {"sha256": "aa", "result": "incomplete", "found": ["Heuristics.Limits.Exceeded.MaxScanTime"], "yara": YARA_OK, "audit": {"result": "complete", "version": 2}}
+        old = {
+            "today": {**base, "scannedAt": "2026-11-14T00:00:00Z"},
+            "yesterday": {**base, "scannedAt": "2026-11-12T00:00:00Z"},
+            "other": {**base, "found": ["Win.Test.EICAR"], "scannedAt": "2026-11-14T00:00:00Z"},
+        }
+        kept, todo = plan(wanted, old, datetime(2026, 11, 14, 12, tzinfo=timezone.utc))
+        self.assertEqual(set(kept), {"today", "yesterday", "other"})
+        self.assertEqual(todo, ["other", "new", "yesterday"])
 
     def test_a_report_yara_hasnt_scanned_or_couldnt_is_scanned_again_and_kept_meanwhile(self):
         wanted = {url: {"sha256": "aa", "size": 1} for url in ("clam-only", "yara-failed", "yara-partial", "both")}
