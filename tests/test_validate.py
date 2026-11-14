@@ -1,6 +1,7 @@
 import io
 import json
 import sys
+import tempfile
 import unittest
 import zipfile
 from unittest import mock
@@ -70,6 +71,25 @@ class PluginVersionTests(unittest.TestCase):
         # plugin.json's own version wins, as in DeckyHub; none at all is None.
         self.assertEqual(validate.plugin_version({"version": "1.0"}, {"version": "2.0"}), "1.0")
         self.assertIsNone(validate.plugin_version(None, {}))
+
+    def test_a_zip_read_before_is_not_downloaded_again_and_the_saved_cache_holds_only_what_was_used(self):
+        asset = {"browser_download_url": "https://x/a.zip", "size": 1, "digest": "sha256:ab"}
+        key = "https://x/a.zip|1|sha256:ab"
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "cache.json"
+            path.write_text(json.dumps({key: [{"name": "A"}, {"version": "1"}], "https://x/old.zip|1|": [None, {}]}), encoding="utf-8")
+            with mock.patch.dict(validate._cached, clear=True), mock.patch.dict(validate._used, clear=True):
+                validate.load_zip_cache(str(path))
+                with mock.patch.object(validate, "_read_zip_plugin_files", side_effect=AssertionError("downloaded")):
+                    self.assertEqual(validate.zip_plugin_files(asset), ({"name": "A"}, {"version": "1"}))
+                validate.save_zip_cache(str(path))
+            self.assertEqual(list(json.loads(path.read_text(encoding="utf-8"))), [key])
+
+    def test_a_missing_or_broken_cache_reads_everything_again(self):
+        with mock.patch.dict(validate._cached, clear=True):
+            validate.load_zip_cache(None)
+            validate.load_zip_cache("no/such/file.json")
+            self.assertEqual(validate._cached, {})
 
     def test_an_oversized_plugin_json_is_refused_unread_and_an_oversized_package_json_is_skipped(self):
         def files(plugin, package):

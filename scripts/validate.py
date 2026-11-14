@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -153,13 +154,40 @@ class RangedFile(io.RawIOBase):
         return data
 
 
+# What was read from each ZIP, kept between runs when VALIDATE_CACHE names a file (CI keeps it):
+# a release's ZIP never changes, so only new releases cost a download. Keyed by what identifies
+# the file (URL, size, digest); a run saves just what it used, so the file doesn't grow.
+_cached: dict[str, list] = {}
+_used: dict[str, list] = {}
+_lock = threading.Lock()
+
+
+def load_zip_cache(path: str | None) -> None:
+    try:
+        _cached.update(json.loads(Path(path).read_text(encoding="utf-8")) if path else {})
+    except (OSError, ValueError):
+        pass  # no cache yet, or an unreadable one: everything is read again
+
+
+def save_zip_cache(path: str | None) -> None:
+    if path:
+        Path(path).write_text(json.dumps(_used, separators=(",", ":")), encoding="utf-8")
+
+
 def zip_plugin_files(asset: dict) -> tuple[dict | None, dict]:
     """The ZIP's top-level plugin.json, which Decky Loader reads once it's installed, and
     the package.json beside it ({} when there's none or it isn't a JSON object)."""
-    try:
-        return _read_zip_plugin_files(asset)
-    except zipfile.BadZipFile:
-        return _read_zip_plugin_files(asset)
+    key = f"{asset['browser_download_url']}|{asset.get('size')}|{asset.get('digest') or ''}"
+    with _lock:
+        hit = _cached.get(key)
+    if hit is None:
+        try:
+            hit = list(_read_zip_plugin_files(asset))
+        except zipfile.BadZipFile:
+            hit = list(_read_zip_plugin_files(asset))
+    with _lock:
+        _used[key] = hit
+    return hit[0], hit[1]
 
 
 # A real plugin.json or package.json is a few KB. zipfile reads no more than the size the
@@ -498,6 +526,8 @@ def main() -> int:
     args = parser.parse_args()
     apps = load_registry_apps(REGISTRY)
     errors, warnings = static_errors(apps) + readme_errors(apps, README.read_text(encoding="utf-8")), []
+    cache = os.environ.get("VALIDATE_CACHE")
+    load_zip_cache(cache)
     if not args.offline:
         live_apps = apps
         if args.base_registry:
@@ -518,6 +548,8 @@ def main() -> int:
             errors += app_errors
             warnings += app_warnings
             print(f"{'FAIL' if app_errors else 'ok  '} {app['id']}", flush=True)
+    if not args.offline:  # an offline run reads no ZIPs, and would save an empty cache
+        save_zip_cache(cache)
     for warning in warnings:
         print(f"warning: {warning}")
     for error in errors:

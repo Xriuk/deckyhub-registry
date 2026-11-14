@@ -40,6 +40,14 @@ jobs:
           python3 scripts/validate.py --base-registry "$RUNNER_TEMP/base-registry.json"
         env:
           GITHUB_TOKEN: ${{ github.token }}
+      # What was read from each ZIP before (a release's ZIP never changes) is kept between runs, so
+      # only new releases are downloaded. The weekly run reads everything again, to catch a changed ZIP.
+      - if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/zip-reads.json
+          key: zip-reads-${{ github.run_id }}
+          restore-keys: zip-reads-
       # A push that changes neither the list nor what checks it (docs, tests, other workflows)
       # can't change the answer: it's the weekly run and a manual start that catch a plugin's
       # new release breaking its entry.
@@ -53,3 +61,4 @@ jobs:
           python3 scripts/validate.py
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          VALIDATE_CACHE: ${{ github.event_name != 'schedule' && format('{0}/zip-reads.json', runner.temp) || '' }}
