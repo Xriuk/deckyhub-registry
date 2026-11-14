@@ -72,6 +72,12 @@ class PluginVersionTests(unittest.TestCase):
         self.assertEqual(validate.plugin_version({"version": "1.0"}, {"version": "2.0"}), "1.0")
         self.assertIsNone(validate.plugin_version(None, {}))
 
+    def test_the_filter_error_names_the_word_that_tells_the_zips_apart_if_there_is_one(self):
+        names = lambda *items: [{"name": name} for name in items]  # noqa: E731
+        self.assertEqual(validate.filter_hint(names("T-v1.7.3_Installer.zip", "T-v1.7.3_Project.zip")), "; to pick one, include 'installer' or 'project'")
+        self.assertEqual(validate.filter_hint(names("deck-1.4.7.zip", "deck.zip")), "")
+        self.assertEqual(validate.filter_hint(names("a.zip")), "")
+
     def test_a_zip_read_before_is_not_downloaded_again_and_the_saved_cache_holds_only_what_was_used(self):
         asset = {"browser_download_url": "https://x/a.zip", "size": 1, "digest": "sha256:ab"}
         key = "https://x/a.zip|1|sha256:ab"

@@ -160,6 +160,7 @@ class RangedFile(io.RawIOBase):
 _cached: dict[str, list] = {}
 _used: dict[str, list] = {}
 _lock = threading.Lock()
+_reads = {"cached": 0, "downloaded": 0}
 
 
 def load_zip_cache(path: str | None) -> None:
@@ -180,6 +181,7 @@ def zip_plugin_files(asset: dict) -> tuple[dict | None, dict]:
     key = f"{asset['browser_download_url']}|{asset.get('size')}|{asset.get('digest') or ''}"
     with _lock:
         hit = _cached.get(key)
+        _reads["downloaded" if hit is None else "cached"] += 1
     if hit is None:
         try:
             hit = list(_read_zip_plugin_files(asset))
@@ -259,6 +261,16 @@ def version_mismatch(tag: str, version: str | None) -> bool:
     return a is not None and b is not None and a != b
 
 
+def filter_hint(assets: list[dict]) -> str:
+    """When the ZIPs a filter matches differ by a word ('Installer' / 'Project'), the include
+    words that would pick each one; nothing when they differ only by digits (a version)."""
+    if len(assets) < 2:
+        return ""
+    words = [set(re.findall(r"[a-z]+", asset["name"].lower())) for asset in assets]
+    picks = [sorted(mine - set().union(*(other for other in words if other is not mine))) for mine in words]
+    return "; to pick one, include " + " or ".join(f"{pick[0]!r}" for pick in picks) if all(picks) else ""
+
+
 def github_problems(app: dict, repo: dict | None = None) -> tuple[list[str], list[str]]:
     """repo: the entry's fetch_github() answer, looked up here when not given."""
     errors, warnings = [], []
@@ -287,7 +299,7 @@ def github_problems(app: dict, repo: dict | None = None) -> tuple[list[str], lis
         where = f"{label} {release['tag_name']} ({channel})"
         assets = matching_assets(app, release)
         if len(assets) != 1:
-            errors.append(f"{where}: asset filter matches {len(assets)} ZIPs {[asset['name'] for asset in assets]}, needs exactly 1")
+            errors.append(f"{where}: asset filter matches {len(assets)} ZIPs {[asset['name'] for asset in assets]}, needs exactly 1{filter_hint(assets)}")
             continue
         if not assets[0].get("digest"):
             warnings.append(f"{where}: {assets[0]['name']} has no SHA-256 digest; Decky installs it unverified")
@@ -537,9 +549,11 @@ def main() -> int:
         github = fetch_github(list({app["repo"].casefold(): app["repo"] for app in live_apps}.values())) if live_apps else {}
         def check(app):
             try:
-                return github_problems(app, github.get(app["repo"].casefold(), {}))
+                result = github_problems(app, github.get(app["repo"].casefold(), {}))
             except Exception as error:  # one unreachable repo shouldn't hide the rest
-                return [f"{app['id']}: {type(error).__name__}: {error}"], []
+                result = [f"{app['id']}: {type(error).__name__}: {error}"], []
+            print(f"{'FAIL' if result[0] else 'ok  '} {app['id']}", flush=True)
+            return result
 
         # Each entry reads its ZIPs' indexes over the network, so they run side by side; map keeps the order.
         with ThreadPoolExecutor(8) as pool:
@@ -547,13 +561,14 @@ def main() -> int:
         for app, (app_errors, app_warnings) in zip(live_apps, checked):
             errors += app_errors
             warnings += app_warnings
-            print(f"{'FAIL' if app_errors else 'ok  '} {app['id']}", flush=True)
     if not args.offline:  # an offline run reads no ZIPs, and would save an empty cache
         save_zip_cache(cache)
     for warning in warnings:
         print(f"warning: {warning}")
     for error in errors:
         print(f"error: {error}")
+    if _reads["cached"] or _reads["downloaded"]:
+        print(f"ZIP indexes: {_reads['cached']} from the cache, {_reads['downloaded']} read")
     print(f"{len(apps)} entries, {len(errors)} errors, {len(warnings)} warnings")
     return 1 if errors else 0
 
