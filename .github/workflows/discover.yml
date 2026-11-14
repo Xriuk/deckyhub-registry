@@ -7,7 +7,7 @@ name: Discover
 on:
   workflow_dispatch:
   schedule:
-    - cron: "41 */3 * * *"
+    - cron: "29 */3 * * *"
 
 permissions:
   contents: write
