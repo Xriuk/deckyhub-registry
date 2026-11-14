@@ -5676,6 +5676,15 @@
       "category": "Utilities",
       "detect": { "type": "decky-plugin", "names": ["glARsses"] },
       "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "decky-crt-plugin",
+      "name": "CRT Filter",
+      "description": "Apply a CRT shader to the whole Game Mode screen, with per-game auto-apply.",
+      "repo": "TClark1011/decky-crt-plugin",
+      "category": "Utilities",
+      "detect": { "type": "decky-plugin", "names": ["CRT Filter"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
     }
   ]
 }

@@ -692,6 +692,7 @@ The [VirusTotal backfill](.github/workflows/virustotal-scan.yml) runs daily: it 
 | OLED Tint | Customization | [murdii34/decky-oled-tint](https://github.com/murdii34/decky-oled-tint) |
 | ORIGAMI | Controllers | [lexdrev/origami](https://github.com/lexdrev/origami) |
 | glARsses | Utilities | [roodzofatoz/glarsses](https://github.com/roodzofatoz/glarsses) |
+| CRT Filter | Utilities | [TClark1011/decky-crt-plugin](https://github.com/TClark1011/decky-crt-plugin) |
 
 ## Where the plugins come from
 
