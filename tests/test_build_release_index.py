@@ -164,9 +164,9 @@ class BuildReleaseIndexTests(unittest.TestCase):
         self.assertEqual(stats, {"o/a": {"downloads": 1, "warnings": ["blocked"], "prereleaseWarnings": ["obfuscated"]}, "o/b": {"downloads": 2}, "o/new": {"downloads": 3}})
 
     def test_a_plugins_rating_keeps_only_sane_numbers_and_is_missing_when_nobody_rated(self):
-        found = {"o/a": {"rated": 12, "average": 4.26, "works": 9, "broken": 1, "extra": "x"}, "o/b": {"works": 3}, "o/c": {"rated": 0, "average": 9},
+        found = {"o/a": {"rated": 12, "average": 4.26, "works": 9, "broken": 1, "easy": 8, "hard": 0, "extra": "x"}, "o/b": {"works": 3}, "o/c": {"rated": 0, "average": 9},
                  "o/d": {"rated": True, "average": "5"}, "o/e": "nope"}
-        self.assertEqual(rating_entry(found, "O/A"), {"rated": 12, "average": 4.3, "works": 9, "broken": 1})
+        self.assertEqual(rating_entry(found, "O/A"), {"rated": 12, "average": 4.3, "works": 9, "broken": 1, "easy": 8})
         self.assertEqual(rating_entry(found, "o/b"), {"works": 3})
         for repo in ("o/c", "o/d", "o/e", "o/missing"):
             self.assertIsNone(rating_entry(found, repo), repo)

@@ -24,9 +24,10 @@ It also writes stats.json for the catalog page, per plugin:
 - store: {downloads} when the Decky store (plugins.deckbrew.xyz and its testing store) lists a plugin
   of that name (detect names, then display name; the store names no repository). Those are Decky's
   installs, a different count from GitHub's downloads. Missing when it isn't listed or the store can't be read.
-- rating: {rated, average, works, broken} from DeckyHub users' ratings (the Worker in
+- rating: {rated, average, works, broken, easy, hard} from DeckyHub users' ratings (the Worker in
   deckyhub-plugin's ratings/, RATINGS_URL): how many gave stars and their average (1 to 5, one
-  decimal), and how many said the plugin works or doesn't work on their device. Each part is
+  decimal), how many said the plugin works or doesn't work on their device, and how many found its
+  interface convenient (easy) or inconvenient (hard). Each part is
   missing when nobody gave it; the field is missing when nobody rated. Opinions, not a security
   check. When the ratings can't be read, they're copied from OLD_STATS_JSON.
 - warnings / prereleaseWarnings: what Decky Extended Plugins' audit found in that release
@@ -110,19 +111,19 @@ def store_downloads(lists: list[list[dict]]) -> dict[str, int]:
 
 
 def rating_entry(found: dict, repo: str) -> dict | None:
-    """What users' ratings say about a repository: {rated, average, works, broken}, each only when it is a
+    """What users' ratings say about a repository: {rated, average, works, broken, easy, hard}, each only when it is a
     sane number. Anything else the Worker says is dropped, and None when nothing is left."""
     record = found.get(repo.casefold())
     if not isinstance(record, dict):
         return None
     rating = {}
-    for key in ("rated", "works", "broken"):
+    for key in ("rated", "works", "broken", "easy", "hard"):
         if isinstance(record.get(key), int) and not isinstance(record[key], bool) and record[key] > 0:
             rating[key] = record[key]
     average = record.get("average")
     if "rated" in rating and isinstance(average, (int, float)) and not isinstance(average, bool) and 1 <= average <= 5:
         rating["average"] = round(float(average), 1)
-    return rating if rating.get("rated") or rating.get("works") or rating.get("broken") else None
+    return rating or None
 
 
 def keep_old_ratings(stats: dict, old: dict) -> None:
