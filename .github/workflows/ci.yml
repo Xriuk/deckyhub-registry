@@ -46,7 +46,8 @@ jobs:
       - if: github.event_name != 'pull_request'
         run: |
           if [ "${{ github.event_name }}" = push ] && ! git diff --name-only HEAD^1 HEAD | grep -qE '^(registry/apps\.json|README\.md|scripts/|\.github/workflows/ci\.yml)'; then
-            echo "Nothing the entries are checked with changed; skipping the check against GitHub."
+            echo "Nothing the entries are checked with changed; only the offline checks run."
+            python3 scripts/validate.py --offline
             exit 0
           fi
           python3 scripts/validate.py
