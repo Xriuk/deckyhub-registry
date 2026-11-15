@@ -60,6 +60,16 @@ The [MetaDefender backfill](.github/workflows/metadefender-scan.yml) looks up pu
 
 The [VirusTotal backfill](.github/workflows/virustotal-scan.yml) runs daily: it looks each public plugin ZIP up by SHA-256 and uploads it to VirusTotal if VirusTotal hasn't seen it, so uploaded files become public there. It works through the backlog within the free API's request budget and publishes the results as `reports.json` on `virustotal-reports`, which DeckyHub and the plugin pages read; pending, oversized or failed lookups are not clean verdicts. Set the registry's `VIRUSTOTAL_API_KEY` secret to enable it.
 
+## Use this registry in the official Decky store
+
+The registry has two outputs: `registry/apps.json` (and the `releases.json` / `stats.json` built from it) is what DeckyHub reads, and [scripts/build_decky_store.py](scripts/build_decky_store.py) writes the same plugins in the official Decky plugin store's format, for Decky Loader's **Custom** store:
+
+```sh
+python scripts/build_decky_store.py releases.json out/store
+```
+
+`out/store` gets `index.html` (the plugin list), `plugins.json` (the same, for tools) and `versions` (the update check). DeckyHub's website workflow runs it daily and serves the result as `https://deckyhub.com/store`. In Decky Loader open Settings > General > Store, pick **Custom** and enter that URL. Only stable releases whose ZIP has a SHA-256 on GitHub are listed, because Decky checks that hash before it installs; each version's download is the GitHub release ZIP itself. A plugin's name, author, tags and image come from the `plugin.json` inside its newest ZIP, since Decky matches installed plugins to the store by that name. Nothing here reviews the plugins: the official store does, this does not.
+
 ## Repositories
 
 | Tool | Category | Repository |
@@ -763,7 +773,7 @@ CI runs on every pull request, on pushes to `main` and `develop`, and weekly bec
   ```bash
   GITHUB_TOKEN=$(gh auth token) python scripts/validate.py
   ```
-- **Website:** everything is on deckyhub.com, built by mazillka/deckyhub-plugin: the [plugins](https://deckyhub.com/plugins/), [how to contribute](https://deckyhub.com/contribute/) and the [registry editor](https://deckyhub.com/contribute/editor.html). registry.deckyhub.com only redirects there, so old links keep working: [`scripts/build_site.py`](scripts/build_site.py) writes a redirect for each old page, plugin and category, deployed by the [pages workflow](.github/workflows/pages.yml) from `main`.
+- **Website:** everything is on deckyhub.com, built by mazillka/deckyhub-plugin: the [plugins](https://deckyhub.com/plugins/), [how to contribute](https://deckyhub.com/contribute/) and the [registry editor](https://deckyhub.com/contribute/editor.html). This repository has no website of its own.
 - **Tests:** `python -m unittest discover -s tests` covers the scripts, and also checks that `apps.json` stays under the 512 KB DeckyHub 3.0.0 and older accept, that the catalog page's script parses, and that `stats.json` keeps every field and warning the DeckyHub people run reads (against deckyhub-plugin's `main`, which CI checks out).
 
 ## Taking a plugin off DeckyHub, or sending it to the Decky store

@@ -8,7 +8,7 @@ Repository skills live only in `.agents/skills/`; `.claude/skills` is a symlink 
 
 The `branches` skill has the shared branch strategy; this repo adds:
 
-- `main` is production: every DeckyHub reads `registry/apps.json` from it, Pages serves `docs/` from it, and each change to `apps.json` publishes a `registry-YYYY.MM.DD-N` release. `develop` feeds DeckyHub's Pre-release registry channel and publishes `registry-...-develop` pre-releases. Both are automatic: nothing here gets a version bump.
+- `main` is production: every DeckyHub reads `registry/apps.json` from it, and each change to `apps.json` publishes a `registry-YYYY.MM.DD-N` release. `develop` feeds DeckyHub's Pre-release registry channel and publishes `registry-...-develop` pre-releases. Both are automatic: nothing here gets a version bump.
 - Rulesets "Protect main" (squash only) and "Protect develop" (squash, or a merge commit for the back-merge) require the `validate` check.
 - GitHub doesn't delete branches here when their PRs merge, so merged topic and `discover/` branches stay until someone removes them.
 - `discover/YYYY-MM-DD-HHMM`: PRs into `develop` with plugins `discover.yml` found. When cleaning up, keep the newest while its PR is open; closed ones can go (the workflow reads closed PRs' bodies, not their branches).
