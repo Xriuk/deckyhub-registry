@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from build_release_index import KEEP, OLD_NOTES_LIMIT, keep_old_ratings, rating_entry, trim_notes, ai_evidence, audit_index, build, fork_of, keep_old_warnings, merge_ai_evidence, plugin_stats, store_downloads, store_entry  # noqa: E402
+from build_release_index import KEEP, OLD_NOTES_LIMIT, keep_old_ratings, rating_entry, trim_notes, ai_evidence, audit_index, build, fork_of, keep_old_warnings, merge_ai_evidence, plugin_stats, store_activity, store_downloads, store_entry  # noqa: E402
 from validate import rest_shape  # noqa: E402
 
 
@@ -97,6 +97,55 @@ class BuildReleaseIndexTests(unittest.TestCase):
         entry = {"name": "Framegen", "detect": {"names": ["Decky-Framegen", "Decky Framegen"]}}
         self.assertEqual(store_entry(entry, found), {"downloads": 9})
         self.assertIsNone(store_entry({"name": "Nope", "detect": {"names": []}}, found))
+
+    def test_store_activity_sums_both_store_counters_and_matches_names(self):
+        lists = [
+            [{"name": "Decky Framegen", "downloads": 5, "updates": 2}],
+            [{"name": "decky framegen", "downloads": 9, "updates": 4}],
+        ]
+        activity = store_activity(lists)
+        self.assertEqual(activity, {"decky framegen": {"downloads": 14, "updates": 6}})
+        entry = {"name": "Framegen", "detect": {"names": ["Decky Framegen"]}}
+        self.assertEqual(store_entry(entry, store_downloads(lists), activity), {
+            "downloads": 9, "activity": {"downloads": 14, "updates": 6},
+        })
+
+    def test_store_activity_is_omitted_when_counters_are_missing_or_invalid(self):
+        invalid_values = [None, "3", -1, True, 2.5]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                self.assertEqual(store_activity([
+                    [{"name": "Plugin", "downloads": value, "updates": 1}],
+                    [{"name": "Plugin", "downloads": 2, "updates": 3}],
+                ]), {})
+                self.assertEqual(store_activity([
+                    [{"name": "Plugin", "downloads": 1, "updates": 1}],
+                    [{"name": "Plugin", "downloads": 2, "updates": value}],
+                ]), {})
+        self.assertEqual(store_activity([
+            [{"name": "Plugin", "downloads": 1}],
+            [{"name": "Plugin", "downloads": 2, "updates": 3}],
+        ]), {})
+
+    def test_store_activity_counts_plugins_listed_in_only_one_store(self):
+        self.assertEqual(store_activity([
+            [{"name": "Main Only", "downloads": 1, "updates": 2}],
+            [{"name": "Testing Only", "downloads": 3, "updates": 4}],
+        ]), {
+            "main only": {"downloads": 1, "updates": 2},
+            "testing only": {"downloads": 3, "updates": 4},
+        })
+        self.assertEqual(store_activity([[{"name": "Plugin", "downloads": 1, "updates": 2}]]), {})
+
+    def test_store_activity_rejects_duplicate_names_within_a_store(self):
+        self.assertEqual(store_activity([
+            [{"name": "Plugin", "downloads": 1, "updates": 2}, {"name": "plugin", "downloads": 3, "updates": 4}],
+            [{"name": "Plugin", "downloads": 5, "updates": 6}],
+        ]), {})
+
+    def test_store_entry_keeps_downloads_when_activity_is_unavailable(self):
+        entry = {"name": "Plugin", "detect": {"names": []}}
+        self.assertEqual(store_entry(entry, {"plugin": 7}, {}), {"downloads": 7})
 
     def test_stats_name_what_a_fork_was_forked_from(self):
         history = [release("v1", 1, [("plugin.zip", 1)])]

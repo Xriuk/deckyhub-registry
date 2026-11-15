@@ -21,9 +21,12 @@ It also writes stats.json for the catalog page, per plugin:
   validate.py) on the repo's default branch, plus 'README: "<phrase>"' when its README
   says it's made with AI (AI_README), a sign it's developed with AI help. Missing
   when there are none; no files isn't proof no AI was used.
-- store: {downloads} when the Decky store (plugins.deckbrew.xyz and its testing store) lists a plugin
-  of that name (detect names, then display name; the store names no repository). Those are Decky's
-  installs, a different count from GitHub's downloads. Missing when it isn't listed or the store can't be read.
+- store: {downloads} when either Decky store lists a plugin of that name (detect names, then display
+  name; the store names no repository). This keeps the larger of the two store counts, as before.
+  Optional activity: {downloads, updates}, summed across the main and testing stores when either
+  lists the plugin with valid counters (a missing listing contributes zero). These are activity
+  counts, not unique installs. Missing when counters are invalid, a name is duplicated, or a store
+  cannot be read.
 - rating: {rated, average, works, broken, easy, hard} from DeckyHub users' ratings (the Worker in
   deckyhub-plugin's ratings/, RATINGS_URL): how many gave stars and their average (1 to 5, one
   decimal), how many said the plugin works or doesn't work on their device, and how many found its
@@ -110,6 +113,44 @@ def store_downloads(lists: list[list[dict]]) -> dict[str, int]:
     return found
 
 
+def store_activity(lists: list[list[dict]]) -> dict[str, dict[str, int]]:
+    """Sum valid download and update counters across both stores, with absent names counting as zero."""
+    if len(lists) != len(STORE_URLS):
+        return {}
+    per_store: list[dict[str, dict[str, int]]] = []
+    invalid_per_store: list[set[str]] = []
+    for plugins in lists:
+        if not isinstance(plugins, list):
+            raise ValueError("Decky store response is not a list")
+        found: dict[str, dict[str, int]] = {}
+        invalid: set[str] = set()
+        for plugin in plugins:
+            if not isinstance(plugin, dict) or not isinstance(plugin.get("name"), str):
+                continue
+            name = plugin["name"].casefold()
+            if name in found or name in invalid:
+                found.pop(name, None)
+                invalid.add(name)
+                continue
+            downloads, updates = plugin.get("downloads"), plugin.get("updates")
+            valid = all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in (downloads, updates))
+            if not valid:
+                invalid.add(name)
+            else:
+                found[name] = {"downloads": downloads, "updates": updates}
+        per_store.append(found)
+        invalid_per_store.append(invalid)
+    names = per_store[0].keys() | per_store[1].keys()
+    return {
+        name: {
+            key: (per_store[0].get(name, {}).get(key, 0) + per_store[1].get(name, {}).get(key, 0))
+            for key in ("downloads", "updates")
+        }
+        for name in names
+        if name not in invalid_per_store[0] and name not in invalid_per_store[1]
+    }
+
+
 def rating_entry(found: dict, repo: str) -> dict | None:
     """What users' ratings say about a repository: {rated, average, works, broken, easy, hard}, each only when it is a
     sane number. Anything else the Worker says is dropped, and None when nothing is left."""
@@ -135,12 +176,15 @@ def keep_old_ratings(stats: dict, old: dict) -> None:
             stat["rating"] = previous["rating"]
 
 
-def store_entry(entry: dict, found: dict[str, int]) -> dict | None:
+def store_entry(entry: dict, found: dict[str, int], activity: dict[str, dict[str, int]] | None = None) -> dict | None:
     """The store listing of a registry entry: the store doesn't say which repository a plugin
     came from, so it is matched by name (its detect names, then its display name); {downloads}, or None."""
     for name in [*entry.get("detect", {}).get("names", []), entry.get("name", "")]:
         if name and name.casefold() in found:
-            return {"downloads": found[name.casefold()]}
+            result = {"downloads": found[name.casefold()]}
+            if activity and name.casefold() in activity:
+                result["activity"] = activity[name.casefold()]
+            return result
     return None
 
 
@@ -315,13 +359,17 @@ def main() -> int:
     # warnings (keep_old_warnings below). An empty answer counts as none: it has thousands of records.
     audits = best_effort(lambda url: audit_index(json.loads(fetch(url, auth=False))), AUDIT_URL) or None
     # The Decky store is someone else's site: without it the plugins just show no store badge.
-    in_store = best_effort(lambda: store_downloads([json.loads(fetch(url, auth=False)) for url in STORE_URLS])) or {}
+    store_lists = best_effort(lambda: [json.loads(fetch(url, auth=False)) for url in STORE_URLS])
+    in_store = best_effort(lambda: store_downloads(store_lists)) if store_lists is not None else None
+    in_store_activity = best_effort(lambda: store_activity(store_lists)) if store_lists is not None else None
+    in_store = in_store or {}
+    in_store_activity = in_store_activity or {}
     # DeckyHub's own ratings Worker: without it the plugins keep the ratings they had (keep_old_ratings below).
     ratings = best_effort(lambda url: json.loads(fetch(url, auth=False)).get("plugins") or {}, RATINGS_URL) if RATINGS_URL else {}
     # One read per ZIP: the shown release's feeds both root (stats) and pluginVersion.
     files = functools.lru_cache(maxsize=None)(lambda url, size: zip_plugin_files({"browser_download_url": url, "size": size}))
     read = lambda asset: files(asset["browser_download_url"], asset["size"])  # noqa: E731
-    index = build(entries, lambda repo: github[repo.casefold()]["releases"], lambda entry, releases: plugin_stats(entry, releases, lambda repo: github[repo.casefold()]["stars"], manifest=lambda asset: read(asset)[0], audits=audits, fork=entry.get("upstream") or fork_of(github[entry["repo"].casefold()]), ai=ai_evidence(entry, github[entry["repo"].casefold()], known_ai), store=store_entry(entry, in_store), rating=rating_entry(ratings or {}, entry["repo"])), version=lambda asset: plugin_version(*read(asset)))
+    index = build(entries, lambda repo: github[repo.casefold()]["releases"], lambda entry, releases: plugin_stats(entry, releases, lambda repo: github[repo.casefold()]["stars"], manifest=lambda asset: read(asset)[0], audits=audits, fork=entry.get("upstream") or fork_of(github[entry["repo"].casefold()]), ai=ai_evidence(entry, github[entry["repo"].casefold()], known_ai), store=store_entry(entry, in_store, in_store_activity), rating=rating_entry(ratings or {}, entry["repo"])), version=lambda asset: plugin_version(*read(asset)))
     if (audits is None or (ratings is None and RATINGS_URL)) and len(sys.argv) > 2:
         try:
             old = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8")).get("plugins") or {}
