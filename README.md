@@ -705,6 +705,12 @@ python scripts/build_decky_store.py releases.json out/store
 | ORIGAMI | Controllers | [lexdrev/origami](https://github.com/lexdrev/origami) |
 | glARsses | Utilities | [roodzofatoz/glarsses](https://github.com/roodzofatoz/glarsses) |
 | CRT Filter | Utilities | [TClark1011/decky-crt-plugin](https://github.com/TClark1011/decky-crt-plugin) |
+| Demo Finder | Utilities | [SilvertongueRED/decky-demo-finder](https://github.com/SilvertongueRED/decky-demo-finder) |
+| Junk Store Pro Installer | Game Libraries | [ebenbruyns/junk-store-pro-installer](https://github.com/ebenbruyns/junk-store-pro-installer) |
+| Mixer | Utilities | [SilvertongueRED/Decky-VolumeMixer-Windows](https://github.com/SilvertongueRED/Decky-VolumeMixer-Windows) |
+| GlucoDeck | Utilities | [JDLKMR/Decky-GlucoDeck](https://github.com/JDLKMR/Decky-GlucoDeck) |
+| Next Unlock | Game Libraries | [vlmaier/next-unlock](https://github.com/vlmaier/next-unlock) |
+| Plex Audiobooks | Utilities | [indyjamesb/decky-plex-audiobooks](https://github.com/indyjamesb/decky-plex-audiobooks) |
 
 ## Where the plugins come from
 

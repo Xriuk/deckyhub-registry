@@ -5686,6 +5686,60 @@
       "category": "Utilities",
       "detect": { "type": "decky-plugin", "names": ["CRT Filter"] },
       "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "decky-demo-finder",
+      "name": "Demo Finder",
+      "description": "Check if your wishlisted games have demos available and quickly navigate to them.",
+      "repo": "SilvertongueRED/decky-demo-finder",
+      "category": "Utilities",
+      "detect": { "type": "decky-plugin", "names": ["Demo Finder"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "junk-store-pro-installer",
+      "name": "Junk Store Pro Installer",
+      "description": "Installs Junk Store Pro, the original game mode launcher.",
+      "repo": "ebenbruyns/junk-store-pro-installer",
+      "category": "Game Libraries",
+      "detect": { "type": "decky-plugin", "names": ["Junk Store Pro Installer"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "decky-volumemixer-windows",
+      "name": "Mixer",
+      "description": "Controls the volume of your applications",
+      "repo": "SilvertongueRED/Decky-VolumeMixer-Windows",
+      "category": "Utilities",
+      "detect": { "type": "decky-plugin", "names": ["Mixer"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "decky-glucodeck",
+      "name": "GlucoDeck",
+      "description": "Shows your current Dexcom glucose reading on the Steam Deck via Dexcom Share.",
+      "repo": "JDLKMR/Decky-GlucoDeck",
+      "category": "Utilities",
+      "detect": { "type": "decky-plugin", "names": ["GlucoDeck"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "next-unlock",
+      "name": "Next Unlock",
+      "description": "Steam Deck Achievement Companion (Decky Loader plugin)",
+      "repo": "vlmaier/next-unlock",
+      "category": "Game Libraries",
+      "detect": { "type": "decky-plugin", "names": ["Next Unlock"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
+    },
+    {
+      "id": "decky-plex-audiobooks",
+      "name": "Plex Audiobooks",
+      "description": "Play audiobooks from your Plex server in the background while a game is running, and save your place to Plex.",
+      "repo": "indyjamesb/decky-plex-audiobooks",
+      "category": "Utilities",
+      "detect": { "type": "decky-plugin", "names": ["Plex Audiobooks"] },
+      "asset": { "include": [".zip"], "exclude": ["source"] }
     }
   ]
 }
