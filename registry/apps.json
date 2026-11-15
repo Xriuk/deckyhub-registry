@@ -4763,7 +4763,8 @@
       "repo": "ebenbruyns/junkstore",
       "category": "Game Libraries",
       "detect": { "type": "decky-plugin", "names": ["Junk-Store"] },
-      "asset": { "include": [".zip"], "exclude": ["source"] }
+      "asset": { "include": [".zip"], "exclude": ["source"] },
+      "store": true
     },
     {
       "id": "ludo",
