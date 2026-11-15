@@ -68,7 +68,7 @@ The registry has two outputs: `registry/apps.json` (and the `releases.json` / `s
 python scripts/build_decky_store.py releases.json out/store
 ```
 
-`out/store` gets `index.html` (the plugin list), `plugins.json` (the same, for tools) and `versions` (the update check). DeckyHub's website workflow runs it daily and serves the result as `https://deckyhub.com/store`. In Decky Loader open Settings > General > Store, pick **Custom** and enter that URL. Only stable releases whose ZIP has a SHA-256 on GitHub are listed, because Decky checks that hash before it installs; each version's download is the GitHub release ZIP itself. A plugin's name, author, tags and image come from the `plugin.json` inside its newest ZIP, since Decky matches installed plugins to the store by that name. Nothing here reviews the plugins: the official store does, this does not.
+`out/store` gets `index.html` (the plugin list), `plugins.json` (the same, for tools) and `versions` (the update check). DeckyHub's website workflow runs it daily and serves the result as `https://deckyhub.com/store`. `--prereleases` adds pre-releases: that is `https://deckyhub.com/develop/store`, built from `develop` and its release index. In Decky Loader open Settings > General > Store, pick **Custom** and enter that URL. Only stable releases whose ZIP has a SHA-256 on GitHub are listed, because Decky checks that hash before it installs; each version's download is the GitHub release ZIP itself. A plugin's name, author, tags and image come from the `plugin.json` inside its newest ZIP, since Decky matches installed plugins to the store by that name. Nothing here reviews the plugins: the official store does, this does not.
 
 ## Repositories
 

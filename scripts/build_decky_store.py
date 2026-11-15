@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes this registry in the official Decky plugin store's format, for Decky Loader's Custom store.
 
-Usage: build_decky_store.py RELEASES_JSON OUT_DIR [STATS_JSON]
+Usage: build_decky_store.py [--prereleases] RELEASES_JSON OUT_DIR [STATS_JSON]
 
 RELEASES_JSON is the releases.json build_release_index.py published; registry/apps.json says which plugins there
 are. OUT_DIR gets what Decky Loader fetches from a custom store URL (Settings > General > Store > Custom):
@@ -13,7 +13,7 @@ are. OUT_DIR gets what Decky Loader fetches from a custom store URL (Settings > 
 DeckyHub's website workflow (deckyhub-plugin's pages.yml) serves it as https://deckyhub.com/store, the URL to give Decky. (GitHub Pages sends /store to /store/,
 which is index.html: a JSON body is fine, Decky parses it whatever the file is called.)
 
-Only stable releases, and only ZIPs GitHub published a SHA-256 for: Decky checks that hash before it installs, and
+Only stable releases (with --prereleases, pre-releases too: the store for DeckyHub's Pre-release registry on develop), and only ZIPs GitHub published a SHA-256 for: Decky checks that hash before it installs, and
 a version without one would install unchecked. Each version's `artifact` is the GitHub release ZIP itself.
 A plugin's name, author, tags and image come from the plugin.json inside its newest ZIP, because Decky matches
 installed plugins to the store by that name.
@@ -22,9 +22,11 @@ The store's format has no field for audit warnings or scans, so with STATS_JSON 
 published) they go where Decky shows text: tags (`root`, `ai-assisted`, `deckyhub-warning`) and one line at the end
 of the description with the warnings and the plugin's page on deckyhub.com, which has the full report and scans.
 """
+import functools
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from validate import REGISTRY, channel_releases, load_registry_apps, matching_assets, plugin_version, zip_plugin_files
@@ -61,11 +63,11 @@ def deckyhub_tags(stats: dict | None) -> list[str]:
     return [tag for tag, on in (("root", stats.get("root") is True), ("ai-assisted", bool(stats.get("ai"))), ("deckyhub-warning", bool(stats.get("warnings")))) if on]
 
 
-def store_plugin(entry: dict, releases: list[dict], number: int, manifest, stats: dict | None = None) -> dict | None:
+def store_plugin(entry: dict, releases: list[dict], number: int, manifest, stats: dict | None = None, prereleases: bool = False) -> dict | None:
     """One plugin in the store's format, or None while it has no stable release Decky could check and install."""
     versions = []
     newest_manifest = None
-    for release in sorted((r for r in releases if not r.get("prerelease") and not r.get("draft")), key=lambda r: r.get("published_at") or "", reverse=True):
+    for release in sorted((r for r in releases if (prereleases or not r.get("prerelease")) and not r.get("draft")), key=lambda r: r.get("published_at") or "", reverse=True):
         asset = zip_of(entry, release)
         if asset is None:
             continue
@@ -75,7 +77,7 @@ def store_plugin(entry: dict, releases: list[dict], number: int, manifest, stats
         if name and all(name != seen["name"] for seen in versions):
             versions.append({"name": name, "hash": SHA256.fullmatch(asset["digest"]).group(1), "artifact": asset["browser_download_url"], "created": release.get("published_at")})
     # Only releases the plugin tags that way: channel_releases keeps the "newest stable" rule in one place.
-    if not versions or channel_releases(entry, releases)["stable"] is None:
+    if not versions or channel_releases(entry, releases)["prerelease" if prereleases else "stable"] is None:
         return None
     publish = newest_manifest.get("publish") if isinstance(newest_manifest.get("publish"), dict) else {}
     tags = publish.get("tags") if isinstance(publish.get("tags"), list) else []
@@ -91,13 +93,13 @@ def store_plugin(entry: dict, releases: list[dict], number: int, manifest, stats
     }
 
 
-def build(entries: list[dict], releases_by_repo: dict, manifest, stats_by_repo: dict | None = None) -> tuple[list[dict], dict]:
+def build(entries: list[dict], releases_by_repo: dict, manifest, stats_by_repo: dict | None = None, prereleases: bool = False) -> tuple[list[dict], dict]:
     """(the plugin list, the update map). manifest(asset): the plugin.json inside a ZIP, or {}.
     stats_by_repo: stats.json's plugins, or None when there are none to say anything about."""
     plugins = []
     for number, entry in enumerate(entries, 1):
         stats = None if stats_by_repo is None else stats_by_repo.get(entry["repo"].casefold(), {})
-        plugin = store_plugin(entry, releases_by_repo.get(entry["repo"].casefold(), []), number, manifest, stats)
+        plugin = store_plugin(entry, releases_by_repo.get(entry["repo"].casefold(), []), number, manifest, stats, prereleases)
         if plugin:
             plugins.append(plugin)
     # Two plugins can't share a name in the store, because Decky tells them apart by it: the first one stays.
@@ -114,13 +116,30 @@ def read_manifest(asset: dict) -> dict:
         return {}
 
 
+def warm(entries: list[dict], releases_by_repo: dict, manifest, prereleases: bool = False) -> None:
+    """Reads the newest stable ZIP's plugin.json of every plugin at once: build() asks for them one by one."""
+    def newest(entry):
+        shown = channel_releases(entry, releases_by_repo.get(entry["repo"].casefold(), []))["prerelease" if prereleases else "stable"]
+        return zip_of(entry, shown) if shown else None
+
+    assets = [asset for asset in map(newest, entries) if asset]
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(manifest, assets))
+
+
 def main() -> int:
+    prereleases = "--prereleases" in sys.argv
+    sys.argv = [arg for arg in sys.argv if arg != "--prereleases"]
     if len(sys.argv) not in (3, 4):
         print(__doc__, file=sys.stderr)
         return 2
     releases = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["releases"]
     stats = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))["plugins"] if len(sys.argv) == 4 else None
-    plugins, updates = build(load_registry_apps(REGISTRY), releases, read_manifest, stats)
+    entries = load_registry_apps(REGISTRY)
+    manifest = functools.lru_cache(maxsize=None)(lambda url, size: read_manifest({"browser_download_url": url, "size": size}))
+    read = lambda asset: manifest(asset["browser_download_url"], asset["size"])  # noqa: E731
+    warm(entries, releases, read, prereleases)
+    plugins, updates = build(entries, releases, read, stats, prereleases)
     out = Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
     text = json.dumps(plugins, separators=(",", ":"), ensure_ascii=False)

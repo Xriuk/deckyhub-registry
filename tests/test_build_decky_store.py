@@ -42,6 +42,13 @@ class BuildDeckyStoreTests(unittest.TestCase):
         plugins, _ = build([entry()], releases, no_manifest)
         self.assertEqual([version["name"] for version in plugins[0]["versions"]], ["1.0.0"])
 
+    def test_the_develop_store_lists_prereleases_too(self):
+        releases = {"owner/plug": [release("v1.0.0", 1), release("v2.0.0-rc.1", 9, prerelease=True)]}
+        self.assertEqual([v["name"] for v in build([entry()], releases, no_manifest, None, True)[0][0]["versions"]], ["2.0.0-rc.1", "1.0.0"])
+        only = {"owner/plug": [release("v2.0.0-rc.1", 9, prerelease=True)]}
+        self.assertEqual(build([entry()], only, no_manifest)[0], [])
+        self.assertEqual(len(build([entry()], only, no_manifest, None, True)[0]), 1)
+
     def test_a_plugin_with_nothing_installable_is_not_listed(self):
         for releases in ([], [release("v1.0.0", 1, digest=None)], [release("v1.0.0-rc.1", 1, prerelease=True)], [release("latest", 1)]):
             self.assertEqual(build([entry()], {"owner/plug": releases}, no_manifest), ([], {}), releases)
