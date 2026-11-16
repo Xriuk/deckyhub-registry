@@ -9,7 +9,7 @@ from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_release_index import WARNINGS, plugin_stats  # noqa: E402
+from build_release_index import WARNINGS, plugin_stats, store_entry  # noqa: E402
 
 # CI checks out the readers next to this repository; without a checkout their tests are skipped.
 PLUGIN = Path(os.environ.get("DECKYHUB_PLUGIN", ROOT.parent / "deckyhub-plugin"))
@@ -31,7 +31,7 @@ FULL = plugin_stats(
     manifest=lambda asset: {},
     fork="o/b",
     ai=["CLAUDE.md"],
-    store={"downloads": 5, "updates": None},
+    store={"downloads": 5, "activity": {"downloads": 7, "updates": 3}},
     rating={"rated": 2, "average": 4.5, "works": 1},
 )
 
@@ -60,6 +60,16 @@ class SchemaTests(unittest.TestCase):
         STATS.validate(stats_file(FULL))
         STATS.validate(stats_file(plugin_stats(ENTRY, [], stars=lambda repo: 0, manifest=lambda asset: {})))
         self.assertFalse(STATS.is_valid(stats_file({**FULL, "surprise": 1})))
+        # What the builder writes for a store listing: the larger count, and the summed activity beside it.
+        self.assertEqual(FULL["store"], {"downloads": 5, "activity": {"downloads": 7, "updates": 3}})
+
+    def test_a_store_listing_as_the_builder_writes_it_matches_the_stats_schema(self):
+        entry = {"name": "Plugin", "detect": {"names": ["Plugin"]}}
+        store = store_entry(entry, {"plugin": 5}, {"plugin": {"downloads": 7, "updates": 3}})
+        self.assertEqual(store, {"downloads": 5, "activity": {"downloads": 7, "updates": 3}})
+        STATS.validate(stats_file({**plugin_stats(ENTRY, [], stars=lambda repo: 0, manifest=lambda asset: {}), "store": store}))
+        # Without the activity counters it is the shape every released DeckyHub reads.
+        STATS.validate(stats_file({**FULL, "store": store_entry(entry, {"plugin": 5})}))
 
     def test_the_schema_knows_every_warning_the_builder_can_write(self):
         known = set(STATS.schema["$defs"]["warnings"]["items"]["enum"])

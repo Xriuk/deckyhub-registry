@@ -31,7 +31,14 @@
         "store": {
           "type": "object",
           "required": ["downloads"],
-          "properties": { "downloads": { "type": "integer" }, "updates": { "type": ["integer", "null"] } }
+          "properties": {
+            "downloads": { "type": "integer", "minimum": 0 },
+            "activity": {
+              "type": "object",
+              "required": ["downloads", "updates"],
+              "properties": { "downloads": { "type": "integer", "minimum": 0 }, "updates": { "type": "integer", "minimum": 0 } }
+            }
+          }
         },
         "rating": {
           "type": "object",
