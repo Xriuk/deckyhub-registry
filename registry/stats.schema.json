@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/mazillka/deckyhub-registry/main/registry/stats.schema.json",
+  "title": "DeckyHub stats.json (published on the release-index branches)",
+  "description": "One entry per plugin, keyed by lowercase owner/name. Fields and warning IDs are only ever added: DeckyHub, the browser extension and the site read them, and old copies never update.",
+  "type": "object",
+  "required": ["generatedAt", "plugins"],
+  "properties": {
+    "generatedAt": { "type": "string" },
+    "plugins": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[^A-Z/]+/[^A-Z/]+$" },
+      "additionalProperties": { "$ref": "#/$defs/plugin" }
+    }
+  },
+  "$defs": {
+    "warnings": {
+      "type": "array",
+      "items": { "enum": ["blocked", "private-data", "persistence", "not-in-source", "obfuscated", "no-tls-check", "runs-downloads", "vulnerable"] }
+    },
+    "plugin": {
+      "type": "object",
+      "required": ["downloads", "stars", "updated", "root"],
+      "additionalProperties": false,
+      "properties": {
+        "downloads": { "type": "integer", "minimum": 0 },
+        "stars": { "type": ["integer", "null"] },
+        "updated": { "type": ["string", "null"] },
+        "root": { "type": ["boolean", "null"] },
+        "fork": { "type": "string" },
+        "store": {
+          "type": "object",
+          "required": ["downloads"],
+          "properties": { "downloads": { "type": "integer" }, "updates": { "type": ["integer", "null"] } }
+        },
+        "rating": {
+          "type": "object",
+          "properties": {
+            "rated": { "type": "integer" },
+            "average": { "type": "number", "minimum": 1, "maximum": 5 },
+            "works": { "type": "integer" },
+            "broken": { "type": "integer" },
+            "easy": { "type": "integer" },
+            "hard": { "type": "integer" }
+          }
+        },
+        "ai": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "$ref": "#/$defs/warnings" },
+        "prereleaseWarnings": { "$ref": "#/$defs/warnings" }
+      }
+    }
+  }
+}

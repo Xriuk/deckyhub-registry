@@ -23,6 +23,12 @@ jobs:
         with:
           repository: mazillka/deckyhub-plugin
           path: deckyhub-plugin
+      # The browser extension reads stats.json too; tests/test_schemas.py checks its fields.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mazillka/deckyhub-ext
+          path: deckyhub-ext
+      - run: python3 -m pip install -r requirements-dev.txt
       # DeckyHub's own parser and v1 schema test, run against this repository's file.
       - run: python3 -m unittest tests.test_registry_schema
         working-directory: deckyhub-plugin
@@ -33,6 +39,7 @@ jobs:
       - run: python3 -m unittest discover -s tests
         env:
           DECKYHUB_PLUGIN: ${{ github.workspace }}/deckyhub-plugin
+          DECKYHUB_EXT: ${{ github.workspace }}/deckyhub-ext
       # Each entry against its repository: releases, asset filter, plugin.json name.
       - if: github.event_name == 'pull_request'
         run: |
